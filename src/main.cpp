@@ -2,8 +2,8 @@
 #include <random>
 #include <iostream>
 
-#define HORIZONTAL_CELLS 100
-#define VERTICAL_CELLS 100
+#define HORIZONTAL_CELLS 50
+#define VERTICAL_CELLS 50
 #define WINDOW_HEIGHT 1000
 #define WINDOW_WIDTH 1000
 #define MAX_CELL_HEIGHT 15
@@ -27,9 +27,49 @@ sf::Color getJetColor(int intensity, int max){
     std::cout << "Error: Invalid color value " <<  intensity << " for scale 0-" << max << std::endl;
 }
 
-struct Cell {
-    sf::CircleShape cellShape; 
-    int height;
+class SandCells : public sf::Drawable, public sf::Transformable {
+    public:
+        SandCells() {
+            m_vertices = sf::VertexArray(sf::Quads, HORIZONTAL_CELLS*VERTICAL_CELLS*4);
+            float cell_width = WINDOW_WIDTH/HORIZONTAL_CELLS;
+            float cell_height = WINDOW_HEIGHT/VERTICAL_CELLS;
+
+            // idx is vertices index, i,j represents sand cell at that coordinate
+            int idx;
+            for (int i = 0; i < HORIZONTAL_CELLS; i++) {
+                for (int j = 0; j < VERTICAL_CELLS; j++) {
+                    idx = (i + j*HORIZONTAL_CELLS)*4;
+                    m_vertices[idx].position = sf::Vector2f(i*cell_width, j*cell_height);                   // Top left (base)
+                    m_vertices[idx+1].position = sf::Vector2f((i+.9999)*cell_width, j*cell_height);         // Top right
+                    m_vertices[idx+2].position = sf::Vector2f((i+.9999)*cell_width, (j+.9999)*cell_height); // Bottom right (opposite)
+                    m_vertices[idx+3].position = sf::Vector2f((i)*cell_width, (j+.9999)*cell_height);       // Bottom left             
+                }
+            }
+        }
+
+        /*
+            Turn the given sand cell at x,y in "sand coordinates" to the color specified.
+        */
+        void color_cell(int x, int y, sf::Color color) {
+            int idx = (x + y*HORIZONTAL_CELLS)*4;
+            m_vertices[idx].color = color;
+            m_vertices[idx+1].color = color;
+            m_vertices[idx+2].color = color;
+            m_vertices[idx+3].color = color;
+        }
+
+    private:
+        virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const {
+            // Apply transform
+            states.transform *= getTransform();
+            // Don't need tiles
+            states.texture = NULL;
+            // Draw
+            target.draw(m_vertices, states);
+        }
+        sf::VertexArray m_vertices;
+        std::vector<int> heights;
+
 };
 
 int main()
@@ -37,15 +77,13 @@ int main()
     auto window = sf::RenderWindow{ { WINDOW_HEIGHT, WINDOW_WIDTH }, "CMake SFML Project" };
     window.setFramerateLimit(144);
 
-    Cell cells[HORIZONTAL_CELLS][VERTICAL_CELLS];
     std::default_random_engine generator;
     std::normal_distribution<int> distribution(MEAN_CELL_STARTING_HEIGHT, 2);
 
+    SandCells sc;
     for (int i = 0; i < HORIZONTAL_CELLS; i++) {
         for (int j = 0; j < VERTICAL_CELLS; j++) {
-            cells[i][j].height = distribution(generator);
-            cells[i][j].cellShape = sf::CircleShape(3);
-            cells[i][j].cellShape.setPosition((i/(float)HORIZONTAL_CELLS)*WINDOW_WIDTH, (j/(float)VERTICAL_CELLS)*WINDOW_HEIGHT);
+            sc.color_cell(i, j, getJetColor(i, HORIZONTAL_CELLS));
         }
     }
 
@@ -60,13 +98,7 @@ int main()
         }
 
         window.clear();
-        for (int i = 0; i < HORIZONTAL_CELLS; i++) {
-            for (int j = 0; j < VERTICAL_CELLS; j++) {
-                cells[i][j].cellShape.setFillColor(getJetColor(i, HORIZONTAL_CELLS));
-                //cells[i][j].cellShape.setFillColor(sf::Color::Red);
-                window.draw(cells[i][j].cellShape);
-            }
-        }
+        window.draw(sc);
         window.display();
     }
 }
