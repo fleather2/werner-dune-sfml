@@ -1,13 +1,17 @@
 #include <SFML/Graphics.hpp>
 #include <random>
 #include <iostream>
+#include <algorithm>
+#include <iterator>
+#include <cstdlib>
+
 
 #define HORIZONTAL_CELLS 500
 #define VERTICAL_CELLS 500
 #define WINDOW_HEIGHT 1000
 #define WINDOW_WIDTH 1000
 #define MAX_CELL_HEIGHT 15
-#define MEAN_CELL_STARTING_HEIGHT 5
+#define MEAN_CELL_STARTING_HEIGHT 3
 
 sf::Color getJetColor(int intensity, int max){
     // Get a normalized value between 0 and 255
@@ -25,6 +29,10 @@ sf::Color getJetColor(int intensity, int max){
     }
     return sf::Color::White;
     std::cout << "Error: Invalid color value " <<  intensity << " for scale 0-" << max << std::endl;
+}
+
+int neg_mod(int a, int b) {
+    return ((a % b) + b) % b;
 }
 
 class SandCells : public sf::Drawable, public sf::Transformable {
@@ -51,7 +59,7 @@ class SandCells : public sf::Drawable, public sf::Transformable {
         void randomize_cells() { 
             for (int i = 0; i < HORIZONTAL_CELLS; i++) {
                 for (int j = 0; j < VERTICAL_CELLS; j++) {
-                    this->set_height(i, j, rand() % MAX_CELL_HEIGHT);
+                    this->set_height(i, j, rand() % (MAX_CELL_HEIGHT));
                 }
             }
         }
@@ -71,13 +79,39 @@ class SandCells : public sf::Drawable, public sf::Transformable {
             return (x + y*HORIZONTAL_CELLS)*4;
         }
 
-        void set_height(int x, int y, int height) {
+        int set_height(int x, int y, int height) {
             if (height > MAX_CELL_HEIGHT || height < 0) {
-                std::cout << "Error: Tried to assign cell at (" << x << ", " << y << ")" << " invalid height of " << height << " (max " << MAX_CELL_HEIGHT << ")" << std::endl;
-                return;
+                //std::cout << "Error: Tried to assign cell at (" << x << ", " << y << ")" << " invalid height of " << height << " (max " << MAX_CELL_HEIGHT << ")" << std::endl;
+                return -1;
             }
             heights[x][y] = height;
             set_cell_color(x, y, getJetColor(height, MAX_CELL_HEIGHT));
+        }
+
+        /*
+            Check if theres a 2-value delta between cell at x,y and its 8 Moore neighbors
+        */
+        void avalanche(int x, int y) {
+            int cell_height = heights[x][y];
+            if (cell_height > 0) {
+                std::vector<int> neighbors{0, 1, 2, 3, 4, 5, 6, 7};
+                auto rng = std::default_random_engine {};
+                std::shuffle(neighbors.begin(), neighbors.end(), rng);
+                int neighbor_height;
+
+                for (auto n : neighbors) {
+                    int n_y = neg_mod(x + neighbor_values[n][0], HORIZONTAL_CELLS);
+                    int n_x = neg_mod(y + neighbor_values[n][1], VERTICAL_CELLS);
+                    //std::cout << "For cell " << x << ", " << y << std::endl;
+                    neighbor_height = heights[n_x][n_y];
+                    if (cell_height - neighbor_height > 2) {
+                        if (set_height(n_x, n_y, heights[n_x][n_y]+1)) {
+                            set_height(x, y, cell_height-1);
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
     private:
@@ -90,17 +124,18 @@ class SandCells : public sf::Drawable, public sf::Transformable {
             target.draw(m_vertices, states);
         }
         int heights[HORIZONTAL_CELLS][VERTICAL_CELLS];
+        int neighbor_values[8][2] = {
+            {0, -1}, {0, 1},  {1, 1}, 
+            {-1, 0},          {1, 0},
+            {1, -1}, {0, -1}, {-1, -1}
+        };
         sf::VertexArray m_vertices;
 
 };
 
-int main()
-{
+int main() {
     auto window = sf::RenderWindow{ { WINDOW_HEIGHT, WINDOW_WIDTH }, "CMake SFML Project" };
     window.setFramerateLimit(144);
-
-    std::default_random_engine generator;
-    std::normal_distribution<int> distribution(MEAN_CELL_STARTING_HEIGHT, 2);
 
     SandCells sc;
     for (int i = 0; i < HORIZONTAL_CELLS; i++) {
@@ -110,15 +145,31 @@ int main()
     }
     sc.randomize_cells();
 
-    while (window.isOpen())
-    {
-        for (auto event = sf::Event{}; window.pollEvent(event);)
-        {
-            if (event.type == sf::Event::Closed)
-            {
+    // Main loop
+    while (window.isOpen()) {
+        // Check for window closed
+        for (auto event = sf::Event{}; window.pollEvent(event);) {
+            if (event.type == sf::Event::Closed) {
                 window.close();
             }
         }
+
+        int saltation_hop_dist = 3;
+        float p_deposition_bare = 0.4;
+        float p_deposition_sand_covered = 0.6;
+        float p_deposition_wind_shadow = 1.0;
+        for (int i = 0; i < HORIZONTAL_CELLS; i++) {
+            for (int j = 0; j < VERTICAL_CELLS; j++) {
+                sc.avalanche(i, j);
+            }
+        }
+
+
+        // TODO Randomly select and deposit grains
+        // Wrap boundaries
+
+        // TODO check for avalanche
+        //for (int i = 0; i < sc.)
 
         window.clear();
         window.draw(sc);
