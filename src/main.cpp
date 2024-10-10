@@ -2,8 +2,8 @@
 #include <random>
 #include <iostream>
 
-#define HORIZONTAL_CELLS 50
-#define VERTICAL_CELLS 50
+#define HORIZONTAL_CELLS 500
+#define VERTICAL_CELLS 500
 #define WINDOW_HEIGHT 1000
 #define WINDOW_WIDTH 1000
 #define MAX_CELL_HEIGHT 15
@@ -30,7 +30,8 @@ sf::Color getJetColor(int intensity, int max){
 class SandCells : public sf::Drawable, public sf::Transformable {
     public:
         SandCells() {
-            m_vertices = sf::VertexArray(sf::Quads, HORIZONTAL_CELLS*VERTICAL_CELLS*4);
+            int num_vertices = HORIZONTAL_CELLS*VERTICAL_CELLS*4;
+            m_vertices = sf::VertexArray(sf::Quads, num_vertices);
             float cell_width = WINDOW_WIDTH/HORIZONTAL_CELLS;
             float cell_height = WINDOW_HEIGHT/VERTICAL_CELLS;
 
@@ -47,15 +48,36 @@ class SandCells : public sf::Drawable, public sf::Transformable {
             }
         }
 
+        void randomize_cells() { 
+            for (int i = 0; i < HORIZONTAL_CELLS; i++) {
+                for (int j = 0; j < VERTICAL_CELLS; j++) {
+                    this->set_height(i, j, rand() % MAX_CELL_HEIGHT);
+                }
+            }
+        }
+
         /*
             Turn the given sand cell at x,y in "sand coordinates" to the color specified.
         */
-        void color_cell(int x, int y, sf::Color color) {
-            int idx = (x + y*HORIZONTAL_CELLS)*4;
+        void set_cell_color(int x, int y, sf::Color color) {
+            int idx = get_vertex_index(x, y);
             m_vertices[idx].color = color;
             m_vertices[idx+1].color = color;
             m_vertices[idx+2].color = color;
             m_vertices[idx+3].color = color;
+        }
+
+        int get_vertex_index(int x, int y) {
+            return (x + y*HORIZONTAL_CELLS)*4;
+        }
+
+        void set_height(int x, int y, int height) {
+            if (height > MAX_CELL_HEIGHT || height < 0) {
+                std::cout << "Error: Tried to assign cell at (" << x << ", " << y << ")" << " invalid height of " << height << " (max " << MAX_CELL_HEIGHT << ")" << std::endl;
+                return;
+            }
+            heights[x][y] = height;
+            set_cell_color(x, y, getJetColor(height, MAX_CELL_HEIGHT));
         }
 
     private:
@@ -67,8 +89,8 @@ class SandCells : public sf::Drawable, public sf::Transformable {
             // Draw
             target.draw(m_vertices, states);
         }
+        int heights[HORIZONTAL_CELLS][VERTICAL_CELLS];
         sf::VertexArray m_vertices;
-        std::vector<int> heights;
 
 };
 
@@ -83,9 +105,10 @@ int main()
     SandCells sc;
     for (int i = 0; i < HORIZONTAL_CELLS; i++) {
         for (int j = 0; j < VERTICAL_CELLS; j++) {
-            sc.color_cell(i, j, getJetColor(i, HORIZONTAL_CELLS));
+            sc.set_cell_color(i, j, getJetColor(i, HORIZONTAL_CELLS));
         }
     }
+    sc.randomize_cells();
 
     while (window.isOpen())
     {
