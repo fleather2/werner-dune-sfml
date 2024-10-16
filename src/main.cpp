@@ -52,7 +52,8 @@ class SandCells : public sf::Drawable, public sf::Transformable {
                     m_vertices[idx].position = sf::Vector2f(i*cell_width, j*cell_height);                   // Top left (base)
                     m_vertices[idx+1].position = sf::Vector2f((i+.9999)*cell_width, j*cell_height);         // Top right
                     m_vertices[idx+2].position = sf::Vector2f((i+.9999)*cell_width, (j+.9999)*cell_height); // Bottom right (opposite)
-                    m_vertices[idx+3].position = sf::Vector2f((i)*cell_width, (j+.9999)*cell_height);       // Bottom left             
+                    m_vertices[idx+3].position = sf::Vector2f((i)*cell_width, (j+.9999)*cell_height);       // Bottom left
+                    set_height(i, j, 0);             
                 }
             }
         }
@@ -97,24 +98,27 @@ class SandCells : public sf::Drawable, public sf::Transformable {
         bool avalanche(int x, int y) {
             int cell_height = heights[x][y];
             if (cell_height > 0) {
-                std::vector<int> neighbors{0, 1, 2, 3, 4, 5, 6, 7};
-                auto rng = std::default_random_engine {};
-                std::shuffle(neighbors.begin(), neighbors.end(), rng);
-                int neighbor_height;
-
-                for (auto n : neighbors) {
-                    int n_y = neg_mod(x + neighbor_values[n][0], HORIZONTAL_CELLS);
-                    int n_x = neg_mod(y + neighbor_values[n][1], VERTICAL_CELLS);
-                    //std::cout << "For cell " << x << ", " << y << std::endl;
-                    neighbor_height = heights[n_x][n_y];
-                    if (cell_height - neighbor_height > 2) {
-                        if (set_height(n_x, n_y, heights[n_x][n_y]+1) == 0) {
-                            set_height(x, y, cell_height-1);
-                            avalanche(n_x, n_y);
-                            return true;
+                
+                    // Find all potential neighbors who are at least 2 shorter
+                    std::vector<int> potential_neighbors;
+                    for (int i = 0; i < 8; i++) {
+                        int n_y = neg_mod(x + neighbor_values[i][0], HORIZONTAL_CELLS);
+                        int n_x = neg_mod(y + neighbor_values[i][1], VERTICAL_CELLS);
+                        int neighbor_height = heights[n_x][n_y];
+                        if (cell_height - neighbor_height > 2) {
+                            potential_neighbors.push_back(i);
                         }
                     }
-                }
+                    // Return if no suitable neighbors
+                    if (potential_neighbors.size() == 0) {
+                        return false;
+                    }
+                    // Select a neighbor at random
+                    int i = potential_neighbors[rand()%potential_neighbors.size()];
+                    int n_y = neg_mod(x + neighbor_values[i][0], HORIZONTAL_CELLS);
+                    int n_x = neg_mod(y + neighbor_values[i][1], VERTICAL_CELLS);
+                    transfer_sand(x, y, n_x, n_y);
+                    return true;
             }
             return false;
         }
@@ -205,6 +209,7 @@ int main() {
             }
         }
     }
+    sc.set_height(10, 10, 20);
     
     // Main loop
     while (window.isOpen()) {
@@ -222,7 +227,8 @@ int main() {
         }
 
 
-        
+        // sc.avalanche(10, 10);
+        // sf::sleep(sf::seconds(.1));
 
 
         window.clear();
